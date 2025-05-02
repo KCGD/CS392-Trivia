@@ -96,10 +96,10 @@ int main(int argc, char** argv) {
      */
     if(DEBUG) {
         fprintf(stdout, "[DEBUG] ARGUMENTS:\n");
-        fprintf(stdout, "quesiton_file: %s\n", question_file);
-        fprintf(stdout, "ip: %s\n", ip);
-        fprintf(stdout, "port: %d\n", port);
-        fprintf(stdout, "help: %d\n", help);
+        fprintf(stdout, "|  quesiton_file: %s\n", question_file);
+        fprintf(stdout, "|  ip: %s\n", ip);
+        fprintf(stdout, "|  port: %d\n", port);
+        fprintf(stdout, "|  help: %d\n", help);
     }
 
     exit(0);

@@ -81,9 +81,9 @@ int main(int argc, char** argv) {
      */
     if(DEBUG) {
         fprintf(stdout, "[DEBUG] ARGUMENTS:\n");
-        fprintf(stdout, "ip: %s\n", ip);
-        fprintf(stdout, "port: %d\n", port);
-        fprintf(stdout, "help: %d\n", help);
+        fprintf(stdout, "|  ip: %s\n", ip);
+        fprintf(stdout, "|  port: %d\n", port);
+        fprintf(stdout, "|  help: %d\n", help);
     }
 
     exit(0);
