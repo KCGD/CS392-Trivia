@@ -102,5 +102,5 @@ int main(int argc, char** argv) {
         fprintf(stdout, "|  help: %d\n", help);
     }
 
-    exit(0);
+    return 0;
 }

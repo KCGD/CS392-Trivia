@@ -1,1 +1,1 @@
-valgrind --leak-check=full ./runclient.sh "$@"
+valgrind --leak-check=full ./Build/client "$@"

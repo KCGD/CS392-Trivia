@@ -1,1 +1,1 @@
-valgrind --leak-check=full ./runserver.sh "$@"
+valgrind --leak-check=full ./Build/server "$@"
