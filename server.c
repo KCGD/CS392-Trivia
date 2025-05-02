@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
 
 int main(int argc, char** argv) {
     char* question_file = "qshort.txt";
@@ -11,6 +12,8 @@ int main(int argc, char** argv) {
     // parse process arguments
     for(int i = 0; i < argc; i++) {
         char* arg = argv[i];
+
+        fprintf(stdout, "I'm the server!\n");
 
         // question file argument
         if(strcmp(arg, "-f") == 0) {
