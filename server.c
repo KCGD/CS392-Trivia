@@ -10,12 +10,25 @@
  * DEFINE CONSTANTS
  */
 const int MAX_CLIENTS = 3;
+char* QUESTION_DELIM = " ";
 char* VALID_ARGS[] = {"-f", "-i", "-p", "-h", NULL};
 int STRLEN = 1024;
 int DEBUG = 1;
 char* DEFAULT_QUESTION_FILE = "qshort.txt";
 char* DEFAULT_IP = "127.0.0.1";
 
+// define structs
+struct Entry {
+    char prompt[1024];
+    char options[3][50];
+    int answer_idx;
+};
+
+/**
+ * @brief Print message to stderr and exit with error code 1
+ * 
+ * @param message 
+ */
 void failwith(char* message) {
     fprintf(stderr, "Error: %s\n", message);
     exit(1);
@@ -51,6 +64,146 @@ int valid_argument(char* arg) {
     }
 
     return 0;
+}
+
+/**
+ * @brief Split string into malloced string[] by delimiter
+ * 
+ * @param str 
+ * @param delim 
+ * @return char** 
+ */
+int split_by_delim(char dest[3][50], char* str, char* delim) {
+    dest = malloc(sizeof(char*));
+    char* src_str = strdup(str);
+    char* found;
+
+    int result_pos = 0;
+
+    // while strings found, malloc onto result, realloc result with one more string spot
+    while((found = strsep(&src_str, delim)) != NULL) {
+        // dest[result_pos] = malloc(sizeof(char) * strlen(found));
+        strcpy(dest[result_pos], found);
+
+        result_pos++;
+        // if(realloc(dest, sizeof(char*) * (result_pos+1)) < 0) {
+        //     failwith("Realloc failed.");
+        // }
+    }
+
+    return result_pos+1; 
+}
+
+void parse_error(char* filepath, int line_num, char* reason) {
+    fprintf(stderr, "Parsing error: %s(%d) ~ %s\n", filepath, line_num, reason);
+    exit(1);
+}
+
+/**
+ * @brief read questions from question file
+ * Will not be more than 50 questions, but check for that anyway
+    mallocs all strings
+    destroy with destroy_entries
+    derived from: https://stackoverflow.com/a/3501681/13307600
+ * @param arr 
+ * @param filename 
+ * @return int number of questions read
+ */
+int read_questions(struct Entry* arr, char* filename) {
+    FILE* fp;
+    char* line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    // keep track of position in entry array
+    int entry_num = 0;
+    int line_num = 1;
+
+    // declare template struct
+    struct Entry* this_entry = malloc(sizeof(struct Entry));
+
+    /**
+     * change behavior based on line number
+     * 0 -> line separator
+     * 1 -> prompt (malloc string)
+     * 2 -> questions (split_by_delim)
+     * 3 -> answer index (atoi)
+     * reset to 0 once question ended
+     */
+    int line_type = 1;
+
+    // open question file
+    if((fp = fopen(filename, "r")) == NULL) {
+        fprintf(stderr, "Failed to read question file: %s\n", filename);
+        exit(1);
+    }
+
+    // read by line
+    while ((read = getline(&line, &len, fp)) != -1) {
+        // return (separator line)
+        if(line_type == 0) {
+            // separator type (0)
+            if(strlen(line) != 1) {
+                fprintf(stdout, "%d, %s\n", strlen(line), line);
+                parse_error(filename, line_num, "Expected separator line.");
+            }
+            line_type++;
+        }
+
+        // prompt type (1)
+        else if(line_type == 1) {
+            if(strlen(line) == 0) {
+                parse_error(filename, line_num, "Expected question string (recieved empty line).");
+            }
+            strcpy(this_entry->prompt, line);
+            line_type++;
+        }
+
+        // options type (2)
+        else if (line_type == 2) {
+            if(strlen(line) == 0) {
+                parse_error(filename, line_num, "Expected option string (recieved empty line).");
+            }
+
+            int length = split_by_delim(this_entry->options, line, QUESTION_DELIM);
+            if(length != 4) {
+                fprintf(stdout, "%d, %s\n", length, line);
+                parse_error(filename, line_num, "Invalid amount of options.");
+            }
+
+            line_type++;
+        }
+
+        // answer index type (3)
+        else if (line_type == 3) {
+            this_entry->answer_idx = atoi(line);
+            line_type = 0;
+            entry_num++;
+        }
+
+        line_num++;
+    }
+
+    return entry_num+1;
+}
+
+int destroy_entries(struct Entry** arr) {
+    int i=0;
+    while(arr[i] != NULL) {
+        struct Entry* entry = arr[i];
+        
+        // free option strings
+        int ii=0;
+        while(entry->options[ii] != NULL) {
+            // free(entry->options[i]);
+            ii++;
+        }
+        // free(entry->options);
+        // free(entry->prompt);
+        i++;
+    }
+
+    return i;
 }
 
 int main(int argc, char** argv) {
@@ -154,12 +307,15 @@ int main(int argc, char** argv) {
     // print welcome message (given socket suceeded)
     fprintf(stdout, "Welcome to 392 Trivia!\n");
 
-
-
     /**
      * @brief server cleanup
      */
     close(sock_fd);
+
+    // test parsing questions
+    struct Entry questions[50];
+    int num_questions = read_questions(questions, question_file);
+    printf("Number of questions: %d\n", num_questions);
 
     return 0;
 }
