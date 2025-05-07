@@ -1,1 +1,1 @@
-valgrind --leak-check=full ./Build/client "$@"
+valgrind --leak-check=full --show-leak-kinds=all ./Build/client "$@"
