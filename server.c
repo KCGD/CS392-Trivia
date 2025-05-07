@@ -2,10 +2,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 /**
  * DEFINE CONSTANTS
  */
+const int MAX_CLIENTS = 3;
 char* VALID_ARGS[] = {"-f", "-i", "-p", "-h", NULL};
 int STRLEN = 1024;
 int DEBUG = 1;
@@ -15,6 +19,20 @@ char* DEFAULT_IP = "127.0.0.1";
 void failwith(char* message) {
     fprintf(stderr, "Error: %s\n", message);
     exit(1);
+}
+
+/**
+ * @brief print help doc with name of executable inserted
+ * 
+ * @param execname 
+ */
+void print_help(char* execname) {
+    printf("Usage: %s [-f question_file] [-i IP_address] [-p port_number] [-h]\n", execname);
+    printf("\n");
+    printf("  -f question_file    Default to \"qshort.txt\";\n");
+    printf("  -i IP_address       Default to \"127.0.0.1\";\n");
+    printf("  -p port_number      Default to 25555;\n");
+    printf("  -h                  Display this help info.\n");
 }
 
 /**
@@ -77,11 +95,16 @@ int main(int argc, char** argv) {
         // port number argument
         else if (strcmp(arg, "-p") == 0) {
             port = atoi(argn);
+            if(port == 0) {
+                failwith("Invalid port");
+            }
         }
 
         // help argument
         else if (strcmp(arg, "-h") == 0) {
             help = 1;
+            print_help(argv[0]);
+            exit(0);
         }
 
         // invalid argument
@@ -101,6 +124,42 @@ int main(int argc, char** argv) {
         fprintf(stdout, "|  port: %d\n", port);
         fprintf(stdout, "|  help: %d\n", help);
     }
+
+    /**
+     * @brief set up server (listen on port)
+     socket using domain -> AF_INET, type -> SOCK_STREAM, protocol -> 0?
+     */
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sock_fd == 0) {
+        failwith("Failed to create socket.");
+    }
+
+    // create socket address struct
+    struct sockaddr_in sock_addr;
+    memset(&sock_addr, 0, sizeof(sock_addr));
+    sock_addr.sin_family = AF_INET;
+    sock_addr.sin_addr.s_addr = inet_addr(ip);
+    sock_addr.sin_port = htons(port);
+
+    // bind
+    if(bind(sock_fd, (const struct sockaddr*)&sock_addr, sizeof(sock_addr)) < 0) {
+        failwith("Bind failed.");
+    }
+
+    // listen
+    if(listen(sock_fd, MAX_CLIENTS) < 0) {
+        failwith("Listen failed.");
+    }
+
+    // print welcome message (given socket suceeded)
+    fprintf(stdout, "Welcome to 392 Trivia!\n");
+
+
+
+    /**
+     * @brief server cleanup
+     */
+    close(sock_fd);
 
     return 0;
 }
