@@ -296,6 +296,8 @@ int main(int argc, char **argv) {
   }
 
   // create socket address struct
+  struct sockaddr_in incoming_sock_addr;
+  memset(&incoming_sock_addr, 0, sizeof(incoming_sock_addr));
   struct sockaddr_in sock_addr;
   memset(&sock_addr, 0, sizeof(sock_addr));
   sock_addr.sin_family = AF_INET;
@@ -316,20 +318,29 @@ int main(int argc, char **argv) {
   // print welcome message (given socket suceeded)
   fprintf(stdout, "Welcome to 392 Trivia!\n");
 
-  /**
-   * @brief server cleanup
-   */
-  close(sock_fd);
-
   // test parsing questions
   struct Entry questions[50];
   int num_questions = read_questions(questions, question_file);
-  printf("Number of questions: %d\n", num_questions);
 
-  for (int i = 0; i < num_questions; i++) {
-    print_entry(questions[i]);
-    printf("\n");
+  // printf("Number of questions: %d\n", num_questions);
+  // for (int i = 0; i < num_questions; i++) {
+  //   print_entry(questions[i]);
+  //   printf("\n");
+  // }
+
+  // start listening for players
+  int clients[MAX_CLIENTS];
+  socklen_t incoming_addr_size = sizeof(incoming_sock_addr);
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    clients[i] =
+        accept(sock_fd, (struct sockaddr *)&sock_addr, &incoming_addr_size);
+    if (clients[i] == -1) {
+      failwith("Accept failed.");
+    }
+    printf("New connection detected!\n");
   }
+
+  printf("Max connection reached!\n");
 
   return 0;
 }
