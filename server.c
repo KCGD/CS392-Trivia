@@ -124,7 +124,7 @@ int read_questions(struct Entry *arr, char *filename) {
    * 0 -> line separator
    * 1 -> prompt (string)
    * 2 -> questions (split_by_delim)
-   * 3 -> answer index (atoi)
+   * 3 -> answer (get index)
    * reset to 0 once question ended
    */
   int line_type = 1;
@@ -176,7 +176,20 @@ int read_questions(struct Entry *arr, char *filename) {
 
     // answer index type (3)
     else if (line_type == 3) {
-      this_entry->answer_idx = atoi(line);
+      int set = 0;
+      for (int i = 0; i < 3; i++) {
+        if (strcmp(line, this_entry->options[i]) == 0) {
+          this_entry->answer_idx = i;
+          set = 1;
+        }
+      }
+
+      // error if supplied answer not in options
+      if (set != 1) {
+        parse_error(filename, line_num,
+                    "Supplied answer not defined in options.");
+      }
+
       line_type = 0;
       entry_num++;
       this_entry = &arr[entry_num];
