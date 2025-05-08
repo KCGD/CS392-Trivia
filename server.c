@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <sys/select.h>
 
 /**
  * DEFINE CONSTANTS
@@ -277,22 +278,25 @@ void game_event(struct Player clients[MAX_CLIENTS]) {
 	}
 }
 
-void client_handler(struct Player client, struct Player clients[MAX_CLIENTS]) {
+void client_handler(struct Player clients[MAX_CLIENTS]) {
 	// disconnect new clients if game already started
-	if(Game_State.started != 0) {
-		close(client.fd);
-		return;
-	}
 
 	// send client name query
-	char command_buffer[1024];
-	snprintf(command_buffer, 1024, "%d", NAME_QUERY);
-	write(client.fd, command_buffer, sizeof(command_buffer));
+	for(int i=0; i < MAX_CLIENTS; i++) {
+		char command_buffer[1024];
+		snprintf(command_buffer, 1024, "%d", NAME_QUERY);
+		write(clients[i].fd, command_buffer, sizeof(command_buffer));
+	}
 
 	// set up read loop
+	// use fd set write read fds for client returns
 	char buffer[1024];
 	memset(buffer, 0, sizeof(buffer));
+
 	while(1) {
+		
+		
+
 		int n = read(client.fd, buffer, 1024);
 		buffer[n] = 0;
 
@@ -444,11 +448,10 @@ int main(int argc, char **argv) {
 		clients[i] = new_client;
 
     printf("New connection detected!\n");
-
-		client_handler(new_client, clients);
   }
 
 	printf("Max connection reached!\n");
+	client_handler(clients);
 
   // server cleanup
   for(int i=0; i < 3; i++) {
