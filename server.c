@@ -24,6 +24,12 @@ struct Entry {
   int answer_idx;
 };
 
+struct Player {
+  int fd;
+  int score;
+  char name[128];
+};
+
 /**
  * @brief Print message to stderr and exit with error code 1
  *
