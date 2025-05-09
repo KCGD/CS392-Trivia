@@ -294,14 +294,14 @@ int main(int argc, char **argv) {
           }
         }
 
-        if (DEBUG) {
-          printf("[DEBUG]: Answer %c\n", ans);
-        }
-
         // send response to server
         char res_buffer[1024];
         snprintf(res_buffer, 1024, "%d|%c\\", QUESTION_RESPONSE, ans);
         swrite(sock_fd, res_buffer);
+
+        if (DEBUG) {
+          printf("[DEBUG]: Answer %s\n", res_buffer);
+        }
       } else {
         // socket triggered. print answer
         set_raw(0);
