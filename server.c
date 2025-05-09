@@ -526,11 +526,15 @@ int main(int argc, char **argv) {
    * parse process arguments
    */
   int opt;
+  opterr = 0;
   while ((opt = getopt(argc, argv, "i:p:f:h")) != -1) {
     switch (opt) {
     case 'i': {
       if (strlen(optarg) >= STRLEN) {
         failwith("IP argument too long");
+      }
+      if (strlen(optarg) < 3) {
+        failwith("IP Argument expects valid IP");
       }
       memset(ip, 0, sizeof(char) * STRLEN);
       strcpy(ip, optarg);
