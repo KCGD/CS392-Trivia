@@ -88,6 +88,7 @@ void set_raw(int enable) {
  */
 int split_by_delim(char dest[128][1024], char *str, char *delim) {
   char *src_str = strdup(str); // malloc()
+  char *src_str_saveptr = src_str;
   char *found;
 
   int result_pos = 0;
@@ -99,7 +100,7 @@ int split_by_delim(char dest[128][1024], char *str, char *delim) {
   }
 
   free(found);
-  free(src_str);
+  free(src_str_saveptr);
   return result_pos + 1;
 }
 
@@ -303,6 +304,7 @@ int main(int argc, char **argv) {
 
     // exit case
     case FECKOFF: {
+      shutdown(sock_fd, SHUT_RDWR);
       close(sock_fd);
       exit(0);
     } break;
