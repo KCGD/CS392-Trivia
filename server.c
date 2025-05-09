@@ -281,6 +281,10 @@ void print_question(char *prompt, char *options[3], int question_number) {
   printf("Press 3: %s\n", options[2]);
 }
 
+/**
+  "Safe write"
+  continues writing until all bytes written
+ */
 ssize_t swrite(int fd, char *message) {
   if (fd == -1) {
     return -1;
