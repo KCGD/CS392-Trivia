@@ -134,18 +134,13 @@ ssize_t swrite(int fd, char *message) {
   return written;
 }
 
-int main(int argc, char **argv) {
-  char question_file[STRLEN];
+void parse_connect(int argc, char **argv, int *server_fd) {
   char ip[STRLEN];
   int port = 25555;
-  int help = 0;
 
   // set up string argument defaults
   strcpy(ip, DEFAULT_IP);
 
-  /**
-   * parse process arguments
-   */
   for (int i = 0; i < argc; i++) {
     char *arg = argv[i];
     char *argn = argv[i + 1];
@@ -163,9 +158,41 @@ int main(int argc, char **argv) {
     else if (strcmp(arg, "-p") == 0) {
       port = atoi(argn);
     }
+  }
+
+  // create socket to server
+  struct sockaddr_in sock_addr;
+  memset(&sock_addr, 0, sizeof(sock_addr));
+  socklen_t addr_size = sizeof(sock_addr);
+  sock_addr.sin_family = AF_INET;
+  sock_addr.sin_addr.s_addr = inet_addr(ip);
+  sock_addr.sin_port = htons(port);
+
+  *server_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (server_fd == 0) {
+    failwith("Failed to create socket.");
+  }
+
+  // attempt connecting to server
+  if (connect(*server_fd, (struct sockaddr *)&sock_addr, addr_size) == -1) {
+    fprintf(stderr, "Failed to connect to server: %s:%d\n", ip, port);
+    exit(1);
+  }
+}
+
+int main(int argc, char **argv) {
+  char question_file[STRLEN];
+  int help = 0;
+
+  /**
+   * parse process arguments
+   */
+  for (int i = 0; i < argc; i++) {
+    char *arg = argv[i];
+    char *argn = argv[i + 1];
 
     // help argument
-    else if (strcmp(arg, "-h") == 0) {
+    if (strcmp(arg, "-h") == 0) {
       help = 1;
     }
 
@@ -180,10 +207,10 @@ int main(int argc, char **argv) {
    * DEBUG: Log arugments
    */
   if (DEBUG) {
-    fprintf(stdout, "[DEBUG] ARGUMENTS:\n");
-    fprintf(stdout, "|  ip: %s\n", ip);
-    fprintf(stdout, "|  port: %d\n", port);
-    fprintf(stdout, "|  help: %d\n", help);
+    // fprintf(stdout, "[DEBUG] ARGUMENTS:\n");
+    // fprintf(stdout, "|  ip: %s\n", ip);
+    // fprintf(stdout, "|  port: %d\n", port);
+    // fprintf(stdout, "|  help: %d\n", help);
   }
 
   if (help) {
@@ -191,24 +218,9 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
-  // create socket to server
-  struct sockaddr_in sock_addr;
-  memset(&sock_addr, 0, sizeof(sock_addr));
-  socklen_t addr_size = sizeof(sock_addr);
-  sock_addr.sin_family = AF_INET;
-  sock_addr.sin_addr.s_addr = inet_addr(ip);
-  sock_addr.sin_port = htons(port);
-
-  int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock_fd == 0) {
-    failwith("Failed to create socket.");
-  }
-
-  // attempt connecting to server
-  if (connect(sock_fd, (struct sockaddr *)&sock_addr, addr_size) == -1) {
-    fprintf(stderr, "Failed to connect to server: %s:%d\n", ip, port);
-    exit(1);
-  }
+  // connect to server and return socket
+  int sock_fd;
+  parse_connect(argc, argv, &sock_fd);
 
   // socket I/O
   char buffer[1024];

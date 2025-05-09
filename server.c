@@ -29,6 +29,7 @@ struct Entry {
 
 struct GameState {
   int started;
+  int clients_engaged;
   int ended;
   int question_number;
   int question_total;
@@ -406,6 +407,7 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
   memset(command_buffer, 0, sizeof(command_buffer));
   snprintf(command_buffer, 1024, "%d\\", NAME_QUERY);
   broadcast(clients, command_buffer);
+  Game_State.clients_engaged = 1;
 
   // set up read loop
   // use fd set write read fds for client returns
