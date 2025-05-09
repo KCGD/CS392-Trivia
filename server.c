@@ -578,6 +578,12 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
+  // test parsing questions
+  struct Entry questions[50];
+  int num_questions = read_questions(questions, question_file);
+  Game_State.question_total = num_questions;
+  Game_State.question_set = questions;
+
   /**
    * @brief set up server (listen on port)
    socket using domain -> AF_INET, type -> SOCK_STREAM, protocol -> 0?
@@ -609,12 +615,6 @@ int main(int argc, char **argv) {
 
   // print welcome message (given socket suceeded)
   fprintf(stdout, "Welcome to 392 Trivia!\n");
-
-  // test parsing questions
-  struct Entry questions[50];
-  int num_questions = read_questions(questions, question_file);
-  Game_State.question_total = num_questions;
-  Game_State.question_set = questions;
 
   // start listening for players
   struct Player clients[MAX_CLIENTS];
