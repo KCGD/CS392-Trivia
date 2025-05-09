@@ -196,6 +196,10 @@ int main(int argc, char **argv) {
       help = 1;
     }
 
+    if (strcmp(arg, "-p") == 0 || strcmp(arg, "-i") == 0) {
+      // defer to parse_connect
+    }
+
     // invalid argument
     else if (arg[0] == '-') {
       fprintf(stderr, "Error: Unknown option '%s' recieved.\n", arg);
