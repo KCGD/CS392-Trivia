@@ -490,6 +490,9 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
     // parse return
     char args[128][1024];
     int num_args = split_by_delim(args, buffer, SOCK_DELIM);
+    if (num_args < 1) {
+      fprintf(stderr, "Recieved no arguments! %s\n", buffer);
+    }
 
     switch (atoi(args[0])) {
     // name return

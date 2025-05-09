@@ -181,7 +181,6 @@ void parse_connect(int argc, char **argv, int *server_fd) {
 }
 
 int main(int argc, char **argv) {
-  char question_file[STRLEN];
   int help = 0;
 
   /**
@@ -189,7 +188,6 @@ int main(int argc, char **argv) {
    */
   for (int i = 0; i < argc; i++) {
     char *arg = argv[i];
-    char *argn = argv[i + 1];
 
     // help argument
     if (strcmp(arg, "-h") == 0) {
@@ -251,6 +249,9 @@ int main(int argc, char **argv) {
     // parse message
     char args[128][1024];
     int arg_num = split_by_delim(args, buffer, SOCK_DELIM);
+    if (arg_num < 1) {
+      fprintf(stderr, "Recieved no arguments! %s\n", buffer);
+    }
 
     // handle server communications
     switch (atoi(args[0])) {
@@ -286,13 +287,16 @@ int main(int argc, char **argv) {
 
       // await input
       int selecting = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+      if (selecting < 0) {
+        fprintf(stderr, "Selecting failed!\n");
+      }
 
       if (FD_ISSET(STDIN_FILENO, &readfds)) {
         // stdin triggered, send message to server
         char ans;
         while (!answered) {
           if (read(STDIN_FILENO, &ans, 1) > 0) {
-            int answered = 1;
+            answered = 1;
             set_raw(0);
             break;
           }
@@ -314,7 +318,7 @@ int main(int argc, char **argv) {
 
     // answer broadcase - print
     case ANSWER_BROADCAST: {
-      int answered = 1;
+      // answered = 1;
       printf("%s\n", args[1]);
     } break;
 
