@@ -14,7 +14,7 @@ const int MAX_CLIENTS = 3;
 char *QUESTION_DELIM = " ";
 char *VALID_ARGS[] = {"-f", "-i", "-p", "-h", NULL};
 int STRLEN = 1024;
-int DEBUG = 1;
+int DEBUG = 0;
 char *DEFAULT_QUESTION_FILE = "qshort.txt";
 char *DEFAULT_IP = "127.0.0.1";
 char *SOCK_DELIM = "|";
@@ -29,6 +29,7 @@ struct Entry {
 
 struct GameState {
   int started;
+  int ended;
   int question_number;
   int question_total;
   int question_pending;
@@ -132,6 +133,7 @@ int split_option(char dest[3][50], char *str, char *delim) {
  */
 int split_by_delim(char dest[128][1024], char *str, char *delim) {
   char *src_str = strdup(str); // malloc()
+  char *src_str_saveptr = src_str;
   char *found;
 
   int result_pos = 0;
@@ -143,7 +145,7 @@ int split_by_delim(char dest[128][1024], char *str, char *delim) {
   }
 
   free(found);
-  free(src_str);
+  free(src_str_saveptr);
   return result_pos + 1;
 }
 
@@ -326,7 +328,9 @@ void game_event(struct Player clients[MAX_CLIENTS]) {
     }
 
     // all clients registered, start game
-    printf("number registered: %d\n", num_registered);
+    if (DEBUG) {
+      printf("[DEBUG]: number registered: %d\n", num_registered);
+    }
     if (num_registered == MAX_CLIENTS) {
       printf("The game starts now!\n");
       Game_State.started = 1;
@@ -339,6 +343,7 @@ void game_event(struct Player clients[MAX_CLIENTS]) {
   } else {
     // if all questions answered, print winner and exit
     if (Game_State.question_number == Game_State.question_total) {
+      Game_State.ended = 1;
       int winner;
       int max_score = Game_State.question_total * -1; // lowest possible score
       for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -355,6 +360,13 @@ void game_event(struct Player clients[MAX_CLIENTS]) {
       char command_buffer[1024];
       snprintf(command_buffer, 1024, "%d\\", FECKOFF);
       broadcast(clients, command_buffer);
+
+      // clean up and exit
+      for (int i = 0; i < MAX_CLIENTS; i++) {
+        shutdown(clients[i].fd, SHUT_RDWR);
+        close(clients[i].fd);
+      }
+
     }
     // if no pending question, ask
     else if (Game_State.question_pending == 0) {
@@ -389,8 +401,6 @@ void game_event(struct Player clients[MAX_CLIENTS]) {
   handle client sockets and multiplexing
  */
 void client_handler(struct Player clients[MAX_CLIENTS]) {
-  // disconnect new clients if game already started
-
   // send client name query
   char command_buffer[1024];
   memset(command_buffer, 0, sizeof(command_buffer));
@@ -419,6 +429,11 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
 
     int selecting = select(max_fd + 1, &readfds, NULL, NULL, NULL);
     if (selecting < 0) {
+      // safe case for when game ends
+      // (client sockets close and select fails)
+      if (Game_State.ended) {
+        return;
+      }
       failwith("Selecting failed.");
     }
 
@@ -459,33 +474,31 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
     case QUESTION_RESPONSE: {
       if (DEBUG) {
         printf("[DEBUG]: Recieve answer: %s\n", args[1]);
-
-        // check if answer was correct
-        if ((atoi(args[1]) - 1) == Game_State.active_question.answer_idx) {
-          if (DEBUG) {
-            printf("[DEBUG]: Answer correct! +1 ==> %s\n", active_client->name);
-          }
-          active_client->score++;
-        } else {
-          if (DEBUG) {
-            printf("[DEBUG]: Answer incorrect. -1 ==> %s\n",
-                   active_client->name);
-          }
-          active_client->score--;
-        }
-
-        // broadcast correct answer
-        char res_buffer[1024];
-        snprintf(res_buffer, 1024, "%d|%s\\", ANSWER_BROADCAST,
-                 Game_State.active_question
-                     .options[Game_State.active_question.answer_idx]);
-        broadcast(clients, res_buffer);
-
-        // queue next question
-        Game_State.question_pending = 0;
-        Game_State.question_number++;
-        game_event(clients);
       }
+      // check if answer was correct
+      if ((atoi(args[1]) - 1) == Game_State.active_question.answer_idx) {
+        if (DEBUG) {
+          printf("[DEBUG]: Answer correct! +1 ==> %s\n", active_client->name);
+        }
+        active_client->score++;
+      } else {
+        if (DEBUG) {
+          printf("[DEBUG]: Answer incorrect. -1 ==> %s\n", active_client->name);
+        }
+        active_client->score--;
+      }
+
+      // broadcast correct answer
+      char res_buffer[1024];
+      snprintf(res_buffer, 1024, "%d|%s\\", ANSWER_BROADCAST,
+               Game_State.active_question
+                   .options[Game_State.active_question.answer_idx]);
+      broadcast(clients, res_buffer);
+
+      // queue next question
+      Game_State.question_pending = 0;
+      Game_State.question_number++;
+      game_event(clients);
     } break;
     }
   }
@@ -501,6 +514,7 @@ int main(int argc, char **argv) {
   memset(&Game_State, 0, sizeof(Game_State));
   Game_State.started = 0;
   Game_State.question_number = 0;
+  Game_State.ended = 0;
 
   // set up string argument defaults
   strcpy(question_file, DEFAULT_QUESTION_FILE);
