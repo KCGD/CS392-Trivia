@@ -14,7 +14,7 @@ const int MAX_CLIENTS = 3;
 char *QUESTION_DELIM = " ";
 char *VALID_ARGS[] = {"-f", "-i", "-p", "-h", NULL};
 int STRLEN = 1024;
-int DEBUG = 0;
+int DEBUG = 1;
 char *DEFAULT_QUESTION_FILE = "qshort.txt";
 char *DEFAULT_IP = "127.0.0.1";
 char *SOCK_DELIM = "|";
@@ -432,13 +432,14 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
     }
 
     int selecting = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+    printf("select result: %d\n", selecting);
     if (selecting < 0) {
       // safe case for when game ends
       // (client sockets close and select fails)
       if (Game_State.ended) {
         return;
       }
-      failwith("Selecting failed.");
+      printf("Lost connection!\n");
     }
 
     // find ready client
@@ -450,9 +451,26 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
 
     // read from active client
     int n;
+    int abort = 0;
     while (buffer[strlen(buffer) - 1] != SOCK_END) {
-      n += read(active_client->fd, buffer, 1024);
+      int amount = read(active_client->fd, buffer, 1024);
+      if (amount < 1) {
+        // client disconnected
+        printf("Lost connection!\n");
+        abort = 1;
+        break;
+      } else {
+        n += amount;
+      }
     }
+
+    if (abort) {
+      if (DEBUG) {
+        printf("[DEBUG]: Client lost connection.\n");
+      }
+      continue;
+    }
+
     // trim delimiter from buffer
     buffer[strlen(buffer) - 1] = 0;
 
