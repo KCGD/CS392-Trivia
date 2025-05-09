@@ -196,7 +196,9 @@ int read_questions(struct Entry *arr, char *filename) {
   // read by line
   while ((read = getline(&line, &len, fp)) != -1) {
     // remove '\n' from line
-    line[strlen(line) - 1] = '\0';
+    if (line[strlen(line) - 1] == '\n') {
+      line[strlen(line) - 1] = '\0';
+    }
 
     // return (separator line)
     if (line_type == 0) {
