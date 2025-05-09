@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <sys/select.h>
 
 /**
  * DEFINE CONSTANTS
@@ -17,7 +17,8 @@ int STRLEN = 1024;
 int DEBUG = 1;
 char *DEFAULT_QUESTION_FILE = "qshort.txt";
 char *DEFAULT_IP = "127.0.0.1";
-char* SOCK_DELIM = "|";
+char *SOCK_DELIM = "|";
+char SOCK_END = '\\';
 
 // define structs
 struct Entry {
@@ -27,7 +28,12 @@ struct Entry {
 };
 
 struct GameState {
-	int started;
+  int started;
+  int question_number;
+  int question_total;
+  int question_pending;
+  struct Entry active_question;
+  struct Entry *question_set;
 };
 
 struct Player {
@@ -37,12 +43,13 @@ struct Player {
 };
 
 enum Event_Dict {
-	NAME_QUERY,
-	NAME_RETURN,
-	GAME_START,
-
+  NAME_QUERY,
+  NAME_RETURN,
+  GAME_START,
+  QUESTION_SEND,
+  QUESTION_RESPONSE,
+  ANSWER_BROADCAST
 };
-
 // define game state
 struct GameState Game_State;
 
@@ -116,11 +123,11 @@ int split_option(char dest[3][50], char *str, char *delim) {
 
 /**
  * @brief Split string by delim into string[]
- * 
- * @param dest 
- * @param str 
- * @param delim 
- * @return int 
+ *
+ * @param dest
+ * @param str
+ * @param delim
+ * @return int
  */
 int split_by_delim(char dest[128][1024], char *str, char *delim) {
   char *src_str = strdup(str); // malloc()
@@ -130,8 +137,8 @@ int split_by_delim(char dest[128][1024], char *str, char *delim) {
 
   // string spot
   while ((found = strsep(&src_str, delim)) != NULL) {
-      strcpy(dest[result_pos], found);
-      result_pos++;
+    strcpy(dest[result_pos], found);
+    result_pos++;
   }
 
   free(found);
@@ -261,64 +268,211 @@ void print_entry(struct Entry entry) {
          entry.options[entry.answer_idx]);
 }
 
-void game_event(struct Player clients[MAX_CLIENTS]) {
-	if(Game_State.started == 0) {
-		// check if all players registered names
-		int num_registered = 0;
-		for(int i=0; i < MAX_CLIENTS; i++) {
-			if(strlen(clients[i].name) > 0) {
-				num_registered++;
-			}
-		}
-
-		// all clients registered, start game
-		if(num_registered == MAX_CLIENTS) {
-			printf("The game starts now!\n");
-		}
-	}
+void print_question(char *prompt, char *options[3], int question_number) {
+  printf("Question %d: %s\n", question_number, prompt);
+  printf("Press 1: %s\n", options[0]);
+  printf("Press 2: %s\n", options[1]);
+  printf("Press 3: %s\n", options[2]);
 }
 
+ssize_t swrite(int fd, char *message) {
+  size_t written = 0;
+  size_t length = strlen(message);
+  while (written < length) {
+    ssize_t n = write(fd, message + written, length - written);
+    if (n < 0) {
+      perror("write");
+      return -1;
+    }
+    written += n;
+  }
+
+  return written;
+}
+
+/**
+  Broadcase message to all clients
+ */
+void broadcast(struct Player clients[MAX_CLIENTS], char *message) {
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    swrite(clients[i].fd, message);
+  }
+
+  if (DEBUG) {
+    printf("[DEBUG]: broadcast:: %s\n", message);
+  }
+
+  // prevent tcp message merging (happens sometimes if messages sent too
+  // quickly)
+  usleep(2 * 1000);
+}
+
+/**
+  Handle game state and events
+ */
+void game_event(struct Player clients[MAX_CLIENTS]) {
+  if (Game_State.started == 0) {
+    // check if all players registered names
+    int num_registered = 0;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+      if (DEBUG) {
+        printf("[DEBUG]: client names: %s\n", clients[i].name);
+      }
+
+      if (strlen(clients[i].name) > 0) {
+        num_registered++;
+      }
+    }
+
+    // all clients registered, start game
+    printf("number registered: %d\n", num_registered);
+    if (num_registered == MAX_CLIENTS) {
+      printf("The game starts now!\n");
+      Game_State.started = 1;
+      game_event(clients);
+    }
+
+    /**
+    Game started
+     */
+  } else {
+    // if all questions answered, print winner and exit
+    if (Game_State.question_number == Game_State.question_total) {
+      printf("wincase!\n"); // NEED TO PRINT WINNER NAME
+    }
+    // if no pending question, ask
+    else if (Game_State.question_pending == 0) {
+      Game_State.active_question =
+          Game_State.question_set[Game_State.question_number];
+
+      // print active question to screen
+      char *options[3] = {Game_State.active_question.options[0],
+                          Game_State.active_question.options[1],
+                          Game_State.active_question.options[2]};
+      print_question(Game_State.active_question.prompt, options,
+                     Game_State.question_number + 1);
+
+      // broadcast question to all clients
+      char command_buffer[1024];
+      memset(command_buffer, 0, sizeof(command_buffer));
+      snprintf(command_buffer, 1024, "%d|%d|%s|%s|%s|%s\\", QUESTION_SEND,
+               Game_State.question_number, Game_State.active_question.prompt,
+               Game_State.active_question.options[0],
+               Game_State.active_question.options[1],
+               Game_State.active_question.options[2]);
+
+      // broadcast message to all clients
+      broadcast(clients, command_buffer);
+    } else {
+      // take no action till question answered
+    }
+  }
+}
+
+/**
+  handle client sockets and multiplexing
+ */
 void client_handler(struct Player clients[MAX_CLIENTS]) {
-	// disconnect new clients if game already started
+  // disconnect new clients if game already started
 
-	// send client name query
-	for(int i=0; i < MAX_CLIENTS; i++) {
-		char command_buffer[1024];
-		snprintf(command_buffer, 1024, "%d", NAME_QUERY);
-		write(clients[i].fd, command_buffer, sizeof(command_buffer));
-	}
+  // send client name query
+  char command_buffer[1024];
+  memset(command_buffer, 0, sizeof(command_buffer));
+  snprintf(command_buffer, 1024, "%d\\", NAME_QUERY);
+  broadcast(clients, command_buffer);
 
-	// set up read loop
-	// use fd set write read fds for client returns
-	char buffer[1024];
-	memset(buffer, 0, sizeof(buffer));
+  // set up read loop
+  // use fd set write read fds for client returns
+  char buffer[1024];
+  memset(buffer, 0, sizeof(buffer));
+  fd_set readfds;
+  int max_fd = 0;
 
-	while(1) {
-		
-		
+  while (1) {
+    struct Player *active_client;
 
-		int n = read(client.fd, buffer, 1024);
-		buffer[n] = 0;
+    // set up multiplex
+    FD_ZERO(&readfds);
 
-		// detect clietn losing connection
-		if(n == 0) {
-			printf("Lost connection!\n");
-			close(client.fd);
-		}
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+      FD_SET(clients[i].fd, &readfds);
+      if (clients[i].fd > max_fd) {
+        max_fd = clients[i].fd;
+      }
+    }
 
-		// parse return
-		char args[128][1024];
-		int num_args = split_by_delim(args, buffer, SOCK_DELIM);
+    int selecting = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+    if (selecting < 0) {
+      failwith("Selecting failed.");
+    }
 
-		switch(atoi(args[0])) {
-			// name return
-			case NAME_RETURN: {
-				printf("Hi %s!\n", args[1]);
-				strcpy(client.name, args[1]);
-				game_event(clients);
-			} break;
-		}
-	}
+    // find ready client
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+      if (FD_ISSET(clients[i].fd, &readfds)) {
+        active_client = &clients[i];
+      }
+    }
+
+    // read from active client
+    int n;
+    while (buffer[strlen(buffer) - 1] != SOCK_END) {
+      n += read(active_client->fd, buffer, 1024);
+    }
+    // trim delimiter from buffer
+    buffer[strlen(buffer) - 1] = 0;
+
+    // detect clietn losing connection
+    if (n == 0) {
+      printf("Lost connection!\n");
+      close(active_client->fd);
+    }
+
+    // parse return
+    char args[128][1024];
+    int num_args = split_by_delim(args, buffer, SOCK_DELIM);
+
+    switch (atoi(args[0])) {
+    // name return
+    case NAME_RETURN: {
+      printf("Hi %s!\n", args[1]);
+      strcpy(active_client->name, args[1]);
+      game_event(clients);
+    } break;
+
+    // question response
+    case QUESTION_RESPONSE: {
+      if (DEBUG) {
+        printf("[DEBUG]: Recieve answer: %s\n", args[1]);
+
+        // check if answer was correct
+        if ((atoi(args[1]) - 1) == Game_State.active_question.answer_idx) {
+          if (DEBUG) {
+            printf("[DEBUG]: Answer correct! +1 ==> %s\n", active_client->name);
+          }
+          active_client->score++;
+        } else {
+          if (DEBUG) {
+            printf("[DEBUG]: Answer incorrect. -1 ==> %s\n",
+                   active_client->name);
+          }
+          active_client->score--;
+        }
+
+        // broadcast correct answer
+        char res_buffer[1024];
+        snprintf(res_buffer, 1024, "%d|%s\\", ANSWER_BROADCAST,
+                 Game_State.active_question
+                     .options[Game_State.active_question.answer_idx]);
+        broadcast(clients, res_buffer);
+
+        // queue next question
+        Game_State.question_pending = 0;
+        Game_State.question_number++;
+        game_event(clients);
+      }
+    } break;
+    }
+  }
 }
 
 int main(int argc, char **argv) {
@@ -327,8 +481,10 @@ int main(int argc, char **argv) {
   int port = 25555;
   int help = 0;
 
-	// set up game state
-	memset(&Game_State, 0, sizeof(Game_State));
+  // set up game state
+  memset(&Game_State, 0, sizeof(Game_State));
+  Game_State.started = 0;
+  Game_State.question_number = 0;
 
   // set up string argument defaults
   strcpy(question_file, DEFAULT_QUESTION_FILE);
@@ -374,8 +530,6 @@ int main(int argc, char **argv) {
     // help argument
     else if (strcmp(arg, "-h") == 0) {
       help = 1;
-      print_help(argv[0]);
-      exit(0);
     }
 
     // invalid argument
@@ -394,6 +548,11 @@ int main(int argc, char **argv) {
     fprintf(stdout, "|  ip: %s\n", ip);
     fprintf(stdout, "|  port: %d\n", port);
     fprintf(stdout, "|  help: %d\n", help);
+  }
+
+  if (help) {
+    print_help(argv[0]);
+    exit(0);
   }
 
   /**
@@ -431,30 +590,33 @@ int main(int argc, char **argv) {
   // test parsing questions
   struct Entry questions[50];
   int num_questions = read_questions(questions, question_file);
+  Game_State.question_total = num_questions;
+  Game_State.question_set = questions;
 
   // start listening for players
   struct Player clients[MAX_CLIENTS];
   socklen_t incoming_addr_size = sizeof(incoming_sock_addr);
   for (int i = 0; i < MAX_CLIENTS; i++) {
-    int client_fd = accept(sock_fd, (struct sockaddr *)&sock_addr, &incoming_addr_size);
+    int client_fd =
+        accept(sock_fd, (struct sockaddr *)&sock_addr, &incoming_addr_size);
     if (client_fd == -1) {
       failwith("Accept failed.");
     }
 
-		// add client to clients array
-		struct Player new_client;
-		new_client.fd = client_fd;
-		memset(new_client.name, 0, 128);
-		clients[i] = new_client;
+    // add client to clients array
+    struct Player new_client;
+    new_client.fd = client_fd;
+    memset(new_client.name, 0, 128);
+    clients[i] = new_client;
 
     printf("New connection detected!\n");
   }
 
-	printf("Max connection reached!\n");
-	client_handler(clients);
+  printf("Max connection reached!\n");
+  client_handler(clients);
 
   // server cleanup
-  for(int i=0; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     close(clients[i].fd);
   }
   close(sock_fd);
