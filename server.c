@@ -282,6 +282,9 @@ void print_question(char *prompt, char *options[3], int question_number) {
 }
 
 ssize_t swrite(int fd, char *message) {
+  if (fd == -1) {
+    return -1;
+  }
   size_t written = 0;
   size_t length = strlen(message);
   while (written < length) {
@@ -301,7 +304,9 @@ ssize_t swrite(int fd, char *message) {
  */
 void broadcast(struct Player clients[MAX_CLIENTS], char *message) {
   for (int i = 0; i < MAX_CLIENTS; i++) {
-    swrite(clients[i].fd, message);
+    if (clients[i].fd != -1) {
+      swrite(clients[i].fd, message);
+    }
   }
 
   if (DEBUG) {
@@ -366,8 +371,10 @@ void game_event(struct Player clients[MAX_CLIENTS]) {
 
       // clean up and exit
       for (int i = 0; i < MAX_CLIENTS; i++) {
-        shutdown(clients[i].fd, SHUT_RDWR);
-        close(clients[i].fd);
+        if (clients[i].fd != -1) {
+          shutdown(clients[i].fd, SHUT_RDWR);
+          close(clients[i].fd);
+        }
       }
 
     }
@@ -425,9 +432,11 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
     FD_ZERO(&readfds);
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
-      FD_SET(clients[i].fd, &readfds);
-      if (clients[i].fd > max_fd) {
-        max_fd = clients[i].fd;
+      if (clients[i].fd > -1) {
+        FD_SET(clients[i].fd, &readfds);
+        if (clients[i].fd > max_fd) {
+          max_fd = clients[i].fd;
+        }
       }
     }
 
@@ -444,7 +453,7 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
 
     // find ready client
     for (int i = 0; i < MAX_CLIENTS; i++) {
-      if (FD_ISSET(clients[i].fd, &readfds)) {
+      if (FD_ISSET(clients[i].fd, &readfds) && clients[i].fd != -1) {
         active_client = &clients[i];
       }
     }
@@ -467,6 +476,8 @@ void client_handler(struct Player clients[MAX_CLIENTS]) {
     if (abort) {
       if (DEBUG) {
         printf("[DEBUG]: Client lost connection.\n");
+        close(active_client->fd);
+        active_client->fd = -1;
       }
       continue;
     }
