@@ -111,14 +111,6 @@ void print_question(char *prompt, char *options[3], int question_number) {
   printf("Press 3: %s\n", options[2]);
 }
 
-// ssize_t sread(int fd, char *buffer, int size, char delim) {
-//   ssize_t n;
-//   while (buffer[strlen(buffer) - 1] != delim) {
-//     n += read(fd, buffer, size);
-//   }
-//   return n;
-// }
-
 ssize_t swrite(int fd, char *message) {
   size_t written = 0;
   size_t length = strlen(message);
@@ -194,7 +186,7 @@ int main(int argc, char **argv) {
       help = 1;
     }
 
-    if (strcmp(arg, "-p") == 0 || strcmp(arg, "-i") == 0) {
+    else if (strcmp(arg, "-p") == 0 || strcmp(arg, "-i") == 0) {
       // defer to parse_connect
     }
 
@@ -203,16 +195,6 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Error: Unknown option '%s' recieved.\n", arg);
       exit(1);
     }
-  }
-
-  /**
-   * DEBUG: Log arugments
-   */
-  if (DEBUG) {
-    // fprintf(stdout, "[DEBUG] ARGUMENTS:\n");
-    // fprintf(stdout, "|  ip: %s\n", ip);
-    // fprintf(stdout, "|  port: %d\n", port);
-    // fprintf(stdout, "|  help: %d\n", help);
   }
 
   if (help) {
@@ -230,7 +212,14 @@ int main(int argc, char **argv) {
   while (1) {
     int n;
     while (buffer[strlen(buffer) - 1] != SOCK_END) {
-      n += read(sock_fd, buffer, 1024);
+      int amount = read(sock_fd, buffer, 1024);
+      if (amount < 1) {
+        // server closed
+        close(sock_fd);
+        exit(0);
+      } else {
+        n += amount;
+      }
     }
     if (DEBUG) {
       printf("[DEBUG]: recieve:: %s\n", buffer);
