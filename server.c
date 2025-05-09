@@ -48,7 +48,8 @@ enum Event_Dict {
   GAME_START,
   QUESTION_SEND,
   QUESTION_RESPONSE,
-  ANSWER_BROADCAST
+  ANSWER_BROADCAST,
+  FECKOFF
 };
 // define game state
 struct GameState Game_State;
@@ -338,7 +339,22 @@ void game_event(struct Player clients[MAX_CLIENTS]) {
   } else {
     // if all questions answered, print winner and exit
     if (Game_State.question_number == Game_State.question_total) {
-      printf("wincase!\n"); // NEED TO PRINT WINNER NAME
+      int winner;
+      int max_score = Game_State.question_total * -1; // lowest possible score
+      for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i].score > max_score) {
+          winner = i;
+          max_score = clients[i].score;
+        }
+      }
+
+      // print winner
+      printf("Congrats, %s!\n", clients[winner].name);
+
+      // tell everyone to leave
+      char command_buffer[1024];
+      snprintf(command_buffer, 1024, "%d\\", FECKOFF);
+      broadcast(clients, command_buffer);
     }
     // if no pending question, ask
     else if (Game_State.question_pending == 0) {

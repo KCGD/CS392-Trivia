@@ -23,7 +23,8 @@ enum Event_Dict {
   GAME_START,
   QUESTION_SEND,
   QUESTION_RESPONSE,
-  ANSWER_BROADCAST
+  ANSWER_BROADCAST,
+  FECKOFF
 };
 
 void failwith(char *message) {
@@ -298,6 +299,12 @@ int main(int argc, char **argv) {
     case ANSWER_BROADCAST: {
       int answered = 1;
       printf("%s\n", args[1]);
+    } break;
+
+    // exit case
+    case FECKOFF: {
+      close(sock_fd);
+      exit(0);
     } break;
     }
 
