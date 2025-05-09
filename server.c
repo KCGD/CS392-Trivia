@@ -525,49 +525,40 @@ int main(int argc, char **argv) {
   /**
    * parse process arguments
    */
-  for (int i = 0; i < argc; i++) {
-    char *arg = argv[i];
-    char *argn = argv[i + 1];
-
-    if (valid_argument(arg) && i + 1 >= argc && strcmp(arg, "-h") != 0) {
-      failwith("Missing argument value");
-    }
-
-    // question file argument
-    if (strcmp(arg, "-f") == 0) {
-      if (strlen(argn) >= STRLEN) {
-        failwith("file argument too long");
-      }
-      memset(question_file, 0, sizeof(char) * STRLEN);
-      strcpy(question_file, argn);
-    }
-
-    // ip address argument
-    else if (strcmp(arg, "-i") == 0) {
-      if (strlen(argn) >= STRLEN) {
+  int opt;
+  while ((opt = getopt(argc, argv, "i:p:f:h")) != -1) {
+    switch (opt) {
+    case 'i': {
+      if (strlen(optarg) >= STRLEN) {
         failwith("IP argument too long");
       }
       memset(ip, 0, sizeof(char) * STRLEN);
-      strcpy(ip, argn);
-    }
+      strcpy(ip, optarg);
+    } break;
 
-    // port number argument
-    else if (strcmp(arg, "-p") == 0) {
-      port = atoi(argn);
+    case 'p': {
+      port = atoi(optarg);
       if (port == 0) {
         failwith("Invalid port");
       }
-    }
+    } break;
 
-    // help argument
-    else if (strcmp(arg, "-h") == 0) {
+    case 'f': {
+      if (strlen(optarg) >= STRLEN) {
+        failwith("file argument too long");
+      }
+      memset(question_file, 0, sizeof(char) * STRLEN);
+      strcpy(question_file, optarg);
+    } break;
+
+    case 'h': {
       help = 1;
-    }
+    } break;
 
-    // invalid argument
-    else if (arg[0] == '-') {
-      fprintf(stderr, "Error: Unknown option '%s' recieved.\n", arg);
+    case '?': {
+      fprintf(stderr, "Error: Unknown option '-%c' recieved.\n", optopt);
       exit(1);
+    } break;
     }
   }
 
